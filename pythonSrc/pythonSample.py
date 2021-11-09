@@ -3,6 +3,10 @@ from datetime import datetime
 
 import time
 from collections import namedtuple
+import sys
+for x in sys.path:
+    print(x)
+sys.path.append('/home/joe/.local/lib/python3.7/dist-packages')
 import stomp
 
 conn = stomp.Connection([("node2.hawkguide.com", 64613)])
