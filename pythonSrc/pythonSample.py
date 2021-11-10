@@ -8,10 +8,13 @@ for x in sys.path:
     print(x)
 sys.path.append('/home/joe/.local/lib/python3.7/dist-packages')
 import stomp
+from jsmin import jsmin
 
 conn = stomp.Connection([("node2.hawkguide.com", 64613)])
+indConfigFile=r"./ind_config.json"
+coefFile=r"./coefs.json"
 
-Trade = namedtuple("Trade", "price size time")
+Trade = namedtuple("Trade", "price size side time")
 Quote = namedtuple("Quote", "bidPrice bidSize askPrice askSize time")
 
 def connect_and_subscribe(conn):
@@ -35,33 +38,20 @@ def connect_and_subscribe(conn):
 
 EPS = 0.000001
 
-baseIndicatorConfigs=[
-    {"Name":"TradePrice"}, \
-    {"Name":"TradeSize"},\
-    {"Name":"AskPrice"},\
-    {"Name":"AskSize"},\
-    {"Name":"BidPrice"},\
-    {"Name":"BidSize"},\
-    {"Name":"MidPrice"},\
-    {"Name":"TradeFlag"},\
+def parseConfigFile(config_file: str):
+    with open(config_file, "r") as f:
+        content = jsmin(f.read().strip())
+    parsed_config = json.loads(content)
+    return parsed_config
 
-]
 
-derivedIndicatorConfigs=[
-                         {"Name": "dPrice", "Ind1": "TradePrice", "CombType":"Diff"},\
-                         {"Name": "dPrice_60", "Ind1": "dPrice", "CombType":"Ema", "Alpha": 60},\
-                         {"Name": "dPrice_20", "Ind1": "dPrice", "CombType":"Ema","Alpha": 20},\
-                         {"Name": "dPrice_180", "Ind1": "dPrice", "CombType":"Ema","Alpha": 180},\
-                         {"Name": "dMid", "Ind1": "MidPrice", "CombType":"Diff", "outlier_clip": 0.5},\
-                         {"Name": "PosSide", "Ind1": "TradePrice","CombType":"Eq","Ind2": "AskPrice"},\
-                         {"Name": "NegSide", "Ind1": "TradePrice","CombType":"Eq","Ind2": "BidPrice"},\
-                         {"Name": "Side", "Ind1": "PosSide", "CombType":"Sub","Ind2": "NegSide"},\
-                         {"Name": "Size", "Ind1": "Side", "CombType":"Prod","Ind2": "TradeSize"},\
-                         {"Name": "Side_5", "Ind1": "Side", "CombType":"Ema", "Alpha": 5},\
-                         {"Name": "Side_100", "Ind1": "Side", "CombType":"Ema", "Alpha": 100}\
-                         ]
+indConfig=parseConfigFile(indConfigFile)
 
-coeffs={"Side_5":0.01,"dMid":0.03}
+baseIndicatorConfigs=indConfig['baseIndicatorConfigs']
+
+derivedIndicatorConfigs=indConfig['derivedIndicatorConfigs']
+
+coeffs=parseConfigFile(coefFile)['coefs']
 
 class Indicator:
     def __init__(self,indConfig):
@@ -73,6 +63,13 @@ class Indicator:
             self.values.append(trader.lastTradePrice)
         elif(self.name=="TradeSize"):
             self.values.append(trader.lastTradeSize)
+        elif(self.name=="TradeSide"):
+            side=0
+            if(trader.lastTradeSide=="b"):
+                side=1
+            elif(trader.lastTradeSide=="s"):
+                side=-1
+            self.values.append(side)
         elif (self.name == "BidPrice"):
             self.values.append(trader.lastBidPrice)
         elif (self.name == "BidSize"):
@@ -144,12 +141,14 @@ class Trader:
         self.preds=[]
         self.lastTradePrice=0
         self.lastTradeSize=0
+        self.lastTradeSide=""
         self.lastBidPrice=0
         self.lastBidSize=0
         self.lastAskPrice=0
         self.lastAskSize=0
         self.tradeFlag=0
         self.lastPred=0
+
 
     def receiveTrade(self, trade):
         #time = trade[0]
@@ -163,8 +162,9 @@ class Trader:
         #spread = options["spread"]
         self.lastTradePrice=trade.price
         self.lastTradeSize=trade.size
+        self.lastTradeSide=trade.side
         self.tradeFlag=1
-        print("trade price = ",trade.price)
+        print("trade = ",trade)
         #if self.position is None:
         # all instructions can be viewed at https://github.com/z-hao-wang/universal-trader/blob/master/src/instructions.type.ts
         #    return [{
@@ -295,9 +295,9 @@ class MyListener(stomp.ConnectionListener):
         #print("received a message", data)
         #print("\n")
         if (data['e'] == 'tf'):
-            #print(data)
+            print(data)
             tradeMsg=data['d']
-            trade=Trade(price=tradeMsg['r'], size=tradeMsg['a'], time=tradeMsg['ts'])
+            trade=Trade(price=tradeMsg['r'], size=tradeMsg['a'], side=tradeMsg['s'],time=tradeMsg['ts'])
             traderInstance.receiveTrade(trade)
             updateIndicators()
             genPred()

@@ -1,0 +1,80 @@
+{
+  "baseIndicatorConfigs": [
+    {
+      "Name": "TradePrice"
+    },
+    {
+      "Name": "TradeSize"
+    },
+    {
+      "Name": "TradeSide"
+    },
+    {
+      "Name": "AskPrice"
+    },
+    {
+      "Name": "AskSize"
+    },
+    {
+      "Name": "BidPrice"
+    },
+    {
+      "Name": "BidSize"
+    },
+    {
+      "Name": "MidPrice"
+    },
+    {
+      "Name": "TradeFlag"
+    }
+  ],
+  "derivedIndicatorConfigs": [
+    {
+      "Name": "dPrice",
+      "Ind1": "TradePrice",
+      "CombType": "Diff"
+    },
+    {
+      "Name": "dPrice_60",
+      "Ind1": "dPrice",
+      "CombType": "Ema",
+      "Alpha": 60
+    },
+    {
+      "Name": "dPrice_20",
+      "Ind1": "dPrice",
+      "CombType": "Ema",
+      "Alpha": 20
+    },
+    {
+      "Name": "dPrice_180",
+      "Ind1": "dPrice",
+      "CombType": "Ema",
+      "Alpha": 180
+    },
+    {
+      "Name": "dMid",
+      "Ind1": "MidPrice",
+      "CombType": "Diff",
+      "outlier_clip": 0.5
+    },
+    {
+      "Name": "Size",
+      "Ind1": "TradeSide",
+      "CombType": "Prod",
+      "Ind2": "TradeSize"
+    },
+    {
+      "Name": "Side_5",
+      "Ind1": "TradeSide",
+      "CombType": "Ema",
+      "Alpha": 5
+    },
+    {
+      "Name": "Side_100",
+      "Ind1": "TradeSide",
+      "CombType": "Ema",
+      "Alpha": 100
+    }
+  ]
+}
