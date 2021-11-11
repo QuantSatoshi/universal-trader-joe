@@ -1,80 +1,84 @@
 {
+  "decays": [0.1],
+   "outlier_reject": true,
+  "demean": true,
   "baseIndicatorConfigs": [
     {
-      "Name": "TradePrice"
+      "name": "trade_price"
     },
     {
-      "Name": "TradeSize"
+      "name": "trade_size"
     },
     {
-      "Name": "TradeSide"
+      "name": "trade_side"
     },
     {
-      "Name": "AskPrice"
+      "name": "ask_price"
     },
     {
-      "Name": "AskSize"
+      "name": "ask_size"
     },
     {
-      "Name": "BidPrice"
+      "name": "bid_price"
     },
     {
-      "Name": "BidSize"
+      "name": "bid_size"
     },
     {
-      "Name": "MidPrice"
+      "name": "mid_price"
     },
+   // {
+   //   "name": "center_of_mass_0.1"
+   // },
     {
-      "Name": "TradeFlag"
+      "name": "trade_flag"
     }
   ],
-  "derivedIndicatorConfigs": [
-    {
-      "Name": "dPrice",
-      "Ind1": "TradePrice",
-      "CombType": "Diff"
-    },
-    {
-      "Name": "dPrice_60",
-      "Ind1": "dPrice",
-      "CombType": "Ema",
-      "Alpha": 60
-    },
-    {
-      "Name": "dPrice_20",
-      "Ind1": "dPrice",
-      "CombType": "Ema",
-      "Alpha": 20
-    },
-    {
-      "Name": "dPrice_180",
-      "Ind1": "dPrice",
-      "CombType": "Ema",
-      "Alpha": 180
-    },
-    {
-      "Name": "dMid",
-      "Ind1": "MidPrice",
-      "CombType": "Diff",
-      "outlier_clip": 0.5
-    },
-    {
-      "Name": "Size",
-      "Ind1": "TradeSide",
-      "CombType": "Prod",
-      "Ind2": "TradeSize"
-    },
-    {
-      "Name": "Side_5",
-      "Ind1": "TradeSide",
-      "CombType": "Ema",
-      "Alpha": 5
-    },
-    {
-      "Name": "Side_100",
-      "Ind1": "TradeSide",
-      "CombType": "Ema",
-      "Alpha": 100
-    }
-  ]
+  //"derivedIndicatorConfigs": [
+   // {
+     // "Name": "dPrice",
+     // "Ind1": "TradePrice",
+     // "CombType": "Diff"
+    //},
+"derivedIndicatorConfigs":
+    [
+    {"name": "side_b", "base_ind":"trade_side"},
+    {"name": "dside_b", "base_ind":"side_b","diff":true},
+    {"name": "trade_price_s","base_ind": "trade_price","smear": true},
+    {"name": "spread","base_ind": "ask_price","ind2":"bid_price","outlier_reject":true},
+    {"name": "quote_sum","base_ind": "ask_size","ind2": "bid_size","comb_type": "sum"},
+    {"name": "quote_dif","base_ind": "ask_size","ind2": "bid_size", "comb_type": "minus"},
+    {"name": "mid_s","base_ind": "mid_price","smear": true},
+    //{"name":"com_0.1","base_ind":"center_of_mass_0.1","smear":true},
+    //{"name":"dcom_0.1","base_ind":"com_0.1","diff":true},
+    {"name": "dprice", "base_ind": "trade_price_s", "diff": true},
+    {"name": "dmid_b","base_ind":"mid_s","diff":true},
+    {"name":"dprice_5","base_ind":"dprice","ema":true,"alpha":5},
+    {"name":"dprice_60","base_ind": "dprice","ema": true,"alpha": 60},
+    {"name":"dprice_20","base_ind": "dprice","ema": true,"alpha": 20},
+    {"name":"dprice_180","base_ind": "dprice","ema": true,"alpha":180},
+    {"name":"dprice_540","base_ind": "dprice","ema": true,"alpha":540},
+   {"name":"dprice_1500","base_ind": "dprice","ema": true,"alpha":1500},
+   {"name":"dprice_4500","base_ind":"dprice","ema":true,"alpha":4500},
+    {"name":"dside_b_5","base_ind":"dside_b","ema":true,"alpha":5},
+    {"name":"dside_b_20","base_ind":"dside_b","ema":true,"alpha":20},
+    {"name":"dside_b_60","base_ind":"dside_b","ema":true,"alpha":60},
+    {"name":"dside_b_180","base_ind":"dside_b","ema":true,"alpha":180},
+    {"name":"size_b","base_ind":"side_b","ind2":"trade_size","comb_type": "prod"},
+    {"name":"dsize_b","base_ind":"size_b","diff":true},
+    {"name":"dsize_b_5","base_ind":"dsize_b","ema": true, "alpha": 5},
+    {"name":"dsize_b_20","base_ind":"dsize_b","ema": true, "alpha": 20},
+    {"name":"dsize_b_60","base_ind":"dsize_b","ema": true, "alpha": 60},
+    {"name":"dsize_b_180","base_ind":"dsize_b","ema": true, "alpha": 180},
+    {"name":"dsize_b_540","base_ind":"dsize_b","ema": true, "alpha": 540},
+   {"name":"dmid_b_5","base_ind":"dmid_b","ema": true, "alpha": 5},
+    {"name":"dmid_b_20","base_ind":"dmid_b","ema": true, "alpha": 20},
+    {"name":"dmid_b_60","base_ind":"dmid_b","ema": true, "alpha": 60},
+    {"name":"dmid_b_180","base_ind":"dmid_b","ema": true, "alpha": 180},
+    {"name":"dmid_b_540","base_ind":"dmid_b","ema": true, "alpha": 540},
+    {"name":"dmid_b_1500","base_ind":"dmid_b","ema": true, "alpha": 1500}
+   // {"name":"dcom_0.1_5","base_ind":"dcom_0.1","ema":true,"alpha":5},
+    //{"name":"dcom_0.1_20","base_ind":"dcom_0.1","ema":true,"alpha":20},
+    //{"name":"dcom_0.1_180","base_ind":"dcom_0.1","ema":true,"alpha":180}
+]
 }

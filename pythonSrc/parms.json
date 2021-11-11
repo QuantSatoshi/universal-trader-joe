@@ -1,0 +1,14 @@
+{
+  "coefs": {
+    "dsize_b_5": 0.01,
+    "dmid_b_5": 0.03
+  },
+    "outliers": {
+    "dsize_b_5": 0.01,
+    "dmid_b_5": 2
+  },
+    "means": {
+    "dsize_b_5": 0.001,
+    "dmid_b_5": -0.1
+  }
+}
