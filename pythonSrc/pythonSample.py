@@ -13,11 +13,11 @@ from jsmin import jsmin
 
 
 conn = stomp.Connection([("node2.hawkguide.com", 64613)])
-indConfigFile=r"./ind_config.json"
-parmFile=r"./parms.json"
+proj_config_file=r"../jobconfigs/config_bybit.json"
+parm_file=r"./parms.json"
 
 Trade = namedtuple("Trade", "price size side time")
-Quote = namedtuple("Quote", "bidPrice bidSize askPrice askSize com time")
+Quote = namedtuple("Quote", "bid_price bid_size ask_price ask_size com time")
 
 def center_of_mass(ask_vec,bid_vec,mid,decay):
         print("com")
@@ -42,76 +42,76 @@ def connect_and_subscribe(conn):
         destination="/topic/tf/binance_fx/USD_BTC_perpetual_swap", id=1, ack="auto"
     )
 
-
-# conn.disconnect()
-
-
 ## to send a prediction
 # conn.send('/topic/prediction-1', '0.125', transaction=2)
 
-
 EPS = 0.000001
 
-def parseConfigFile(config_file: str):
+def parse_config_file(config_file: str):
     with open(config_file, "r") as f:
         content = jsmin(f.read().strip())
     parsed_config = json.loads(content)
     return parsed_config
 
 
-indConfig=parseConfigFile(indConfigFile)
-parms=parseConfigFile(parmFile)
+proj_config=parse_config_file(proj_config_file)
+fitter_name=proj_config["real_time_fitter_name"]
+ind_config={}
+for f in proj_config["fitters"]:
+    if f["name"]==fitter_name:
+        ind_config=f
+parms=parse_config_file(parm_file)
 
-baseIndicatorConfigs=indConfig['baseIndicatorConfigs']
+base_indicators=ind_config['base_indicators']
 
-derivedIndicatorConfigs=indConfig['derivedIndicatorConfigs']
-
+derived_indicator_configs=ind_config['derived_indicators']
+derived_indicator_configs=[d for d in derived_indicator_configs if d["name"] not in ind_config["inds_unneeded_for_te"] ]
 coeffs=parms['coefs']
 means=parms['means']
 outliers=parms['outliers']
 
 class Indicator:
-    def __init__(self,indConfig):
-        self.name=indConfig['name']
+    def __init__(self,ind_config):
+        self.name=ind_config['name']
         self.values=[]
 
     def update(self,trader):
         if(self.name=="trade_price"):
-            self.values.append(trader.lastTradePrice)
+            self.values.append(trader.last_trade_price)
         elif(self.name=="trade_size"):
-            self.values.append(trader.lastTradeSize)
+            self.values.append(trader.last_trade_size)
         elif(self.name=="trade_side"):
             side=0
-            if(trader.lastTradeSide=="b"):
+            if(trader.last_trade_side=="b"):
                 side=1
-            elif(trader.lastTradeSide=="s"):
+            elif(trader.last_trade_side=="s"):
                 side=-1
             self.values.append(side)
         elif (self.name == "bid_price"):
-            self.values.append(trader.lastBidPrice)
+            self.values.append(trader.last_bid_price)
         elif (self.name == "bid_size"):
-            self.values.append(trader.lastBidSize)
+            self.values.append(trader.last_bid_size)
         elif(self.name=="ask_price"):
-            self.values.append(trader.lastAskPrice)
+            self.values.append(trader.last_ask_price)
         elif(self.name=="ask_size"):
-            self.values.append(trader.lastAskSize)
+            self.values.append(trader.last_ask_size)
         elif(self.name=="mid_price"):
-            self.values.append((trader.lastBidPrice+trader.lastAskPrice)*0.5)
+            self.values.append((trader.last_bid_price+trader.last_ask_price)*0.5)
         else:
             self.values.append(0)
         print(self.name," ",self.values[-1])
 
 class DerivedIndicator(Indicator):
-    def __init__(self,indConfig):
-        super().__init__(indConfig)
-        self.config=indConfig
-        self.ind1=indConfig["base_ind"]
-        self.ind2=indConfig.get("ind2",None)
-        self.smearFlag=self.config.get("smear",False)
-        self.diffFlag = self.config.get("diff", False)
-        self.combType=self.config.get('combType',None)
-        self.outlierValue=self.config.get('outlierValue',None)
-        print("combType=",self.combType)
+    def __init__(self,ind_config):
+        super().__init__(ind_config)
+        self.config=ind_config
+        self.ind1=ind_config["base_ind"]
+        self.ind2=ind_config.get("ind2",None)
+        self.smear_flag=self.config.get("smear",False)
+        self.diff_flag = self.config.get("diff", False)
+        self.comb_type=self.config.get('comb_type',None)
+        self.outlier_value=self.config.get("outlier_value",None)
+        print("comb_type=",self.comb_type)
 
     def update(self,trader):
         print("update in")
@@ -119,39 +119,39 @@ class DerivedIndicator(Indicator):
         val=ind1[-1]
         if(self.ind2 != None):
             ind2 = trader.indicators[self.ind2].values
-        if(self.smearFlag):
+        if(self.smear_flag):
             if((len(ind1)>1) & (ind1[-1]==0)):
                 val=ind1[-2]
-        if(self.diffFlag):
+        if(self.diff_flag):
             if(len(ind1)>1):
                 val=ind1[-1]-ind1[-2]
-        if(self.combType=="ema"):
+        if(self.comb_type=="ema"):
             if(len(ind1)==1):
                 val=ind1[-1]
             else:
                 val=ind1[-1]+(1/float(self.config['alpha']))*ind1[-2]
-        if(self.combType=="eq"):
+        if(self.comb_type=="eq"):
             if(abs(ind1[-1]-ind2[-1])<EPS):
                 val=1
             else:
                 val=0
-        if(self.combType=="sum"):
+        if(self.comb_type=="sum"):
             val=ind1[-1]+ind2[-1]
-        if(self.combType=="minus"):
+        if(self.comb_type=="minus"):
             val=ind1[-1]-ind2[-1]
-        if(self.combType=="prod"):
+        if(self.comb_type=="prod"):
             val=ind1[-1]*ind2[-1]
 
         outlier_val = outliers.get(self.name)
-        if self.outlierValue != None:
+        if self.outlier_value != None:
             outlier_val = min(outlier_val,self.outlier_value)
         if(outlier_val!=None):
-            if indConfig.get("outlier_reject"):
+            if ind_config.get("outlier_reject"):
                 vsl = int((abs(val) <= outlier_val)) * val
-            elif indConfig.get("outlier_clip"):
+            elif ind_config.get("outlier_clip"):
                 val = np.clip(val,-outlier_val, outlier_val)
 
-        if(indConfig.get("demean")):
+        if(ind_config.get("demean")):
             if(means.get(self.name)!=None):
                 val=val-means[self.name]
 
@@ -160,168 +160,114 @@ class DerivedIndicator(Indicator):
         print("out")
 
 class Trader:
-    def __init__(self, initialValue):
-        argJson = json.loads(initialValue)
-        self.startTime = datetime.timestamp(datetime.now())
+    def __init__(self, initial_value):
+        argJson = json.loads(initial_value)
+        self.start_time = datetime.timestamp(datetime.now())
         # save initial values
-        self.counterTrades = 0
-        self.counterObs = 0
-        self.counterCandles = 0
-        self.baseIndicatorConfigs=baseIndicatorConfigs
-        self.derivedIndicatorConfigs=derivedIndicatorConfigs
+        self.counter_trades = 0
+        self.counter_obs = 0
+        self.counter_candles = 0
+        self.base_indicators=base_indicators
+        self.derived_indicator_configs=derived_indicator_configs
         self.coeffs=coeffs
         self.indicators={}
-        for config in self.baseIndicatorConfigs:
-            self.indicators[config['name']]=Indicator(config)
-        self.derivedIndicators={}
-        for config in self.derivedIndicatorConfigs:
+        self.decays=[]
+        for ind_name in self.base_indicators:
+            first_index = ind_name.find(":")
+            ext_name = ind_name[first_index + 1 :]
+            print("ext_name=", ext_name)
+            self.indicators[ext_name]=Indicator({"name":ext_name})
+            s=ind_name.split(":")
+            if("center_of_mass" in s):
+                self.decays.append(float(s[-1]))
+        self.derived_indicators={}
+        for config in self.derived_indicator_configs:
             self.indicators[config['name']]=DerivedIndicator(config)
         self.preds=[]
-        self.lastTradePrice=0
-        self.lastTradeSize=0
-        self.lastTradeSide=""
-        self.lastBidPrice=0
-        self.lastBidSize=0
-        self.lastAskPrice=0
-        self.lastAskSize=0
+        self.last_trade_price=0
+        self.last_trade_size=0
+        self.last_trade_side=""
+        self.last_bid_price=0
+        self.last_bid_size=0
+        self.last_ask_price=0
+        self.last_ask_size=0
         self.last_com={}
-        self.tradeFlag=0
-        self.lastPred=0
+        self.trade_flag=0
+        self.last_pred=0
 
 
-    def receiveTrade(self, trade):
+    def receive_trade(self, trade):
         #time = trade[0]
         #side = trade[1] # 0 = buy, 1 = sell
         #price = trade[2]
         #amount = trade[3] # in btc
         #if self.counterTrades % 1000 == 0:
         #    print("receiveTrade", time, price)
-        self.counterTrades += 1
+        self.counter_trades += 1
         # spread will be backtested with genetic fitting
         #spread = options["spread"]
-        self.lastTradePrice=trade.price
-        self.lastTradeSize=trade.size
-        self.lastTradeSide=trade.side
+        self.last_trade_price=trade.price
+        self.last_trade_size=trade.size
+        self.last_trade_side=trade.side
         self.tradeFlag=1
         print("trade = ",trade)
-        #if self.position is None:
-        # all instructions can be viewed at https://github.com/z-hao-wang/universal-trader/blob/master/src/instructions.type.ts
-        #    return [{
-        #        "op": "cancelAllOrders"
-        #    }, {
-        ##        "op": "createLimitOrder",
-         #       "side": "buy",
-         #       "price": price - spread,
-         #       "amountCurrency": 500,
-         #       "ts": time,
-         #   }, {
-         ##       "op": "createLimitOrder",
-          #      "side": "sell",
-          #      "price": price + spread,
-          #      "amountCurrency": 500,
-          #      "ts": time,
-          #  }]
-        ##else:
-         ##   side = "buy" if position.get("side") == "sell" else "sell"
-          #  newPrice = price - spread if side == "buy" else price + spread
-          #  return [{
-          #      "op": "cancelAllOrders"
-          #  }, {
-          #      "op": "createLimitOrder",
-          #      "side": side,
-          ##      "price": newPrice,
-           #     "amountCurrency": position.get("amountCurrency"),
-           #     "ts": time,
-           # }]
-    #interface OrderBookSchema {
-    #   ts: Date; // server timestamp
-    #   exchange?: string;
-    #   pair?: string;
-    #   bids: {r: number, a: number}[];
-    #   asks: {r: number, a: number}[];
-    # }
 
-    # position { amountOriginal?: number;
-    #               amountClosed?: number;
-    #               amountCurrency: number; // amount remaining
-    #               side: 'buy' | 'sell';
-    #               price: number;
-    #               pairDb: string;
-    #               }
-    def receiveOb(self, quote):
-        self.counterObs += 1
-        self.lastBidPrice=quote.bidPrice
-        self.lastBidSize=quote.bidSize
-        self.lastAskPrice=quote.askPrice
-        self.lastAskSize=quote.askSize
-        self.lastCom=quote.com
+    def receive_ob(self, quote):
+        self.counter_obs += 1
+        self.last_bid_price=quote.bid_price
+        self.last_bid_size=quote.bid_size
+        self.last_ask_price=quote.ask_price
+        self.last_ask_size=quote.ask_size
+        self.last_com=quote.com
         return []
 
-    def receiveCandle(self, candle, positions, orders, options):
-        if self.counterCandles % 100 == 0:
+    def receive_candle(self, candle, positions, orders, options):
+        if self.counter_candles % 100 == 0:
             print('receiveCandle', candle)
-        self.counterCandles += 1
+        self.counter_candles += 1
         return []
 
-    def postUpdate(self):
+    def post_update(self):
         self.tradeFlag=0
 
-traderInstance = Trader("{}")
+trader_instance = Trader("{}")
 
-def updateIndicators():
-    global traderInstance
-    for ind in traderInstance.indicators.keys():
-        traderInstance.indicators[ind].update(traderInstance)
-    traderInstance.postUpdate()
+def update_indicators():
+    global trader_instance
+    for ind in trader_instance.indicators.keys():
+        print(ind)
+        trader_instance.indicators[ind].update(trader_instance)
+    trader_instance.post_update()
 
-def genPred():
-    global traderInstance
+def gen_pred():
+    global trader_instance
     pred=0
-    for ind in traderInstance.coeffs.keys():
-        pred+=coeffs[ind]*traderInstance.indicators[ind].values[-1]
-    traderInstance.lastPred=pred
+    for ind in trader_instance.coeffs.keys():
+        pred+=coeffs[ind]*trader_instance.indicators[ind].values[-1]
+    trader_instance.last_pred=pred
     print("pred = ", pred)
 
-#def receiveOb(arg):
-#    argJson = json.loads(arg)
-#    global traderInstance
-#    ret = traderInstance.receiveOb(argJson["ob"], argJson.get("position"), argJson["orders"], argJson["options"])
-#    return json.dumps(ret)
-
-#def receiveTrade(arg):
-#    updateIndicators(arg)
-#    argJson = json.loads(arg)
-#    global traderInstance
-#    ret = traderInstance.receiveTrade(argJson["trade"], argJson.get("position"), argJson["orders"], argJson["options"])
-#    return json.dumps(ret)
-
-#def receiveCandle(arg):
-#    argJson = json.loads(arg)
-#    global traderInstance
-#    ret = traderInstance.receiveCandle(argJson["candle"], argJson.get("positions"), argJson["orders"], argJson["options"])
-#    return json.dumps(ret)
-
 def init(arg):
-    argJson = json.loads(arg)
-    global traderInstance
-    print("init", argJson["options"])
+    arg_json = json.loads(arg)
+    global trader_instance
+    print("init", arg_json["options"])
 
 def complete(arg):
-    global traderInstance
-    argJson = json.loads(arg)
-    endTime = datetime.timestamp(datetime.now())
-    timeSpend = endTime - traderInstance.startTime
-    print("took", timeSpend)
-    print("completed", argJson["options"])
+    global trader_instance
+    arg_json = json.loads(arg)
+    end_time = datetime.timestamp(datetime.now())
+    time_spend = end_time - trader_instance.start_time
+    print("took", time_spend)
+    print("completed", arg_json["options"])
     # print your orders execution data
     #print("fills", argJson["fills1"])
 
-def positionChange(arg):
-    global traderInstance
+def position_change(arg):
+    global trader_instance
 
 
 class MyListener(stomp.ConnectionListener):
-    global traderInstance
+    global trader_instance
     def __init__(self, conn):
         self.conn = conn
 
@@ -334,43 +280,43 @@ class MyListener(stomp.ConnectionListener):
         #print("\n")
         if (data['e'] == 'tf'):
             print("tf",data)
-            tradeMsg=data['d']
-            trade=Trade(price=tradeMsg['r'], size=tradeMsg['a'], side=tradeMsg['s'],time=tradeMsg['ts'])
-            traderInstance.receiveTrade(trade)
-            updateIndicators()
-            genPred()
+            trade_msg=data['d']
+            trade=Trade(price=trade_msg['r'], size=trade_msg['a'], side=trade_msg['s'],time=trade_msg['ts'])
+            trader_instance.receive_trade(trade)
+            update_indicators()
+            gen_pred()
 
         if (data['e'] == 'obstream'):
-            quoteMsg=data['d']
-            bid_vec=quoteMsg['b']
+            quote_msg=data['d']
+            bid_vec=quote_msg['b']
             while ((len(bid_vec)>0) and (bid_vec[-1][1]==0)):
                 bid_vec=bid_vec[:-1]
             if(len(bid_vec)==0):
-                bidPrice = 0
-                bidSize = 0
+                bid_price = 0
+                bid_size = 0
             else:
-                bidPrice = bid_vec[-1][0]
-                bidSize = bid_vec[-1][1]
+                bid_price = bid_vec[-1][0]
+                bid_size = bid_vec[-1][1]
 
 
-            ask_vec=quoteMsg['a']
+            ask_vec=quote_msg['a']
             while ((len(ask_vec)>0) and (ask_vec[0][1]==0)):
                 ask_vec=ask_vec[1:]
             if(len(ask_vec)==0):
-                askPrice=0
-                askSize=0
+                ask_price=0
+                ask_size=0
             else:
-                askPrice=ask_vec[0][0]
-                askSize=ask_vec[0][1]
+                ask_price=ask_vec[0][0]
+                ask_size=ask_vec[0][1]
             print("new ask vec=",ask_vec)
             com={}
-            for d in indConfig.get("decays"):
+            for d in trader_instance.decays:
                 com[d]=0
                 if((len(ask_vec)!=0)&(len(bid_vec)!=0)):
-                    com[d]=center_of_mass(ask_vec,bid_vec,0.5*(askPrice+bidPrice),d)
+                    com[d]=center_of_mass(ask_vec,bid_vec,0.5*(ask_price+bid_price),d)
 
-            quote=Quote(bidPrice=bidPrice, bidSize=bidSize,askPrice=askPrice, askSize=askSize,com=com,time=quoteMsg['ts'])
-            traderInstance.receiveOb(quote)
+            quote=Quote(bid_price=bid_price, bid_size=bid_size,ask_price=ask_price, ask_size=ask_size,com=com,time=quote_msg['ts'])
+            trader_instance.receive_ob(quote)
 
 
     def on_disconnected(self):
